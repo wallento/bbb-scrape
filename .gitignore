@@ -1,0 +1,7 @@
+bbb_scrape.egg-info
+dist
+.venv
+.vscode
+__pycache__
+.eggs
+bbbscrape/version.py
