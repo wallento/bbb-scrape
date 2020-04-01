@@ -3,11 +3,11 @@
 Scrape a BBB meeting. Currently only supports:
 
  - Extract slides and create video with proper timing
+ - Download desk sharing and webcam videos if present
 
 Upcoming features:
 
  - Render slide annotations and polls
- - Download other videos too
 
 Installation:
 

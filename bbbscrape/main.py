@@ -16,19 +16,35 @@ class Scrape:
         self.host = host
         self.baseurl = "https://{}/presentation/{}".format(host, id)
         self.id = id
-    
+
     def create_output_dir(self):
         self.out = "bbb-scrape-{}".format(self.id)
         try:
             os.mkdir(self.out)
         except FileExistsError:
             pass
-        
+
     def fetch_shapes(self):
         url = "{}/shapes.svg".format(self.baseurl)
         shapes = requests.get(url)
         self.shapes = ElementTree.fromstring(shapes.content)
         open(os.path.join(self.out, "shapes.svg"), "wb").write(shapes.content)
+
+    def fetch_deskshare(self):
+        url = "{}/deskshare/deskshare.mp4".format(self.baseurl)
+        req = requests.get(url)
+        if req.status_code == 200:
+           open(os.path.join(self.out, "deskshare.mp4"), "wb").write(req.content)
+           return True
+        return False
+
+    def fetch_webcams(self):
+        url = "{}/video/webcams.mp4".format(self.baseurl)
+        req = requests.get(url)
+        if req.status_code == 200:
+           open(os.path.join(self.out, "webcams.mp4"), "wb").write(req.content)
+           return True
+        return False
 
     def fetch_images(self):
         self.images = []
@@ -54,7 +70,7 @@ class Scrape:
             f.write("duration {:f}\n".format(frame.ts_out-frame.ts_in))
         f.write("file '{}'\n".format(self.frames[-1].fname))
         f.close()
-    
+
     def render_slides(self):
         subprocess.run(["ffmpeg", "-f", "concat", "-i", "concat.txt", "-pix_fmt", "yuv420p", "-y", "slides.mp4"], cwd=self.out, stderr=subprocess.PIPE)
 
@@ -69,6 +85,10 @@ def main():
     scrape.create_output_dir()
     scrape.fetch_shapes()
     scrape.fetch_images()
+    if scrape.fetch_webcams():
+        print("++ Stored webcams to webcams.mp4")
+    if scrape.fetch_deskshare():
+        print("++ Store desk sharing to deskshare.mp4")
     print("++ Generate frames")
     scrape.generate_frames()
     scrape.generate_concat()
