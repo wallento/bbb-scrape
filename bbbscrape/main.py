@@ -175,6 +175,12 @@ def main():
 
     args = parser.parse_args()
 
+    try:
+        subprocess.run(["ffmpeg", "-h"], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+    except OSError:
+        print("!! ffmpeg not found. Please install it and make sure it is available in your PATH.")
+        return 1
+
     scrape = Scrape(args.host, args.id)
     print("++ Scrape from server")
     scrape.create_output_dir()
