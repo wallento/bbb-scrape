@@ -6,16 +6,16 @@ import argparse
 import copy
 import os
 import subprocess
-from collections import OrderedDict, namedtuple
+from urllib.parse import parse_qs, urlparse
+from collections import namedtuple
 from queue import Queue
 from threading import Thread
-from urllib.parse import parse_qs, urlparse
 from xml.etree import ElementTree
 
 import requests
-from cairosvg import svg2png
 
-namespaces = {"svg": "http://www.w3.org/2000/svg", "xlink": "http://www.w3.org/1999/xlink"}
+namespaces = {"svg": "http://www.w3.org/2000/svg",
+              "xlink": "http://www.w3.org/1999/xlink"}
 
 Image = namedtuple("Image", ["id", "fname", "ts_in", "ts_out"])
 Frame = namedtuple("Frame", ["fname", "ts_in", "ts_out"])
@@ -44,7 +44,8 @@ class Scrape:
         url = "{}/deskshare/deskshare.mp4".format(self.baseurl)
         req = requests.get(url)
         if req.status_code == 200:
-            open(os.path.join(self.out, "deskshare.mp4"), "wb").write(req.content)
+            fname = os.path.join(self.out, "deskshare.mp4")
+            open(fname, "wb").write(req.content)
             return True
         return False
 
@@ -52,7 +53,8 @@ class Scrape:
         url = "{}/video/webcams.mp4".format(self.baseurl)
         req = requests.get(url)
         if req.status_code == 200:
-            open(os.path.join(self.out, "webcams.mp4"), "wb").write(req.content)
+            fname = os.path.join(self.out, "webcams.mp4")
+            open(fname, "wb").write(req.content)
             return True
         return False
 
@@ -67,9 +69,9 @@ class Scrape:
             e.attrib["{http://www.w3.org/1999/xlink}href"] = fname
             if "id" in e.attrib:
                 self.images.append(Image(id=e.attrib["id"],
-                                        fname=fname,
-                                        ts_in=float(e.attrib["in"]),
-                                        ts_out=float(e.attrib["out"])))
+                                         fname=fname,
+                                         ts_in=float(e.attrib["in"]),
+                                         ts_out=float(e.attrib["out"])))
             self.workq.task_done()
 
     def fetch_images(self, tree=None):
@@ -79,7 +81,8 @@ class Scrape:
             for i in range(os.cpu_count()):
                 Thread(target=Scrape.fetch_image, args=(self,)).start()
             self.fetch_images(self.shapes)
-            open(os.path.join(self.out, "shapes.svg"), "wb").write(ElementTree.tostring(self.shapes))
+            fname = os.path.join(self.out, "shapes.svg")
+            open(fname, "wb").write(ElementTree.tostring(self.shapes))
             self.workq.join()
             return
 
@@ -118,7 +121,7 @@ class Scrape:
 
         t = 0.0
         for ts in self.timestamps[1:]:
-            self.workq.put((t,ts))
+            self.workq.put((t, ts))
             t = ts
         self.workq.join()
 
@@ -144,16 +147,20 @@ class Scrape:
                     shapes.remove(e)
             fname = os.path.join("frames", "shapes{}.png".format(timestamp))
             fnamesvg = os.path.join("frames", "shapes{}.svg".format(timestamp))
-            open(os.path.join(self.out, fnamesvg), "wb").write(ElementTree.tostring(shapes))
-            subprocess.run(["inkscape", "--export-png={}".format(fname), "--export-area-drawing", fnamesvg], cwd=self.out, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            shapestr = ElementTree.tostring(shapes)
+            open(os.path.join(self.out, fnamesvg), "wb").write(shapestr)
+            subprocess.run(["inkscape", "--export-png={}".format(fname),
+                            "--export-area-drawing", fnamesvg],
+                           cwd=self.out, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE)
             frame = Frame(fname=fname, ts_in=timestamp, ts_out=ts_out)
             self.frames.append(frame)
             self.workq.task_done()
 
-
     def make_visible(self, tree, timestamp):
         for e in tree.findall("svg:g", namespaces):
-            if "timestamp" in e.attrib and float(e.attrib["timestamp"]) <= timestamp:
+            if ("timestamp" in e.attrib and
+               float(e.attrib["timestamp"]) <= timestamp):
                 style = e.attrib["style"].split(";")
                 style.remove("visibility:hidden")
                 e.attrib["style"] = ";".join(style)
@@ -169,26 +176,32 @@ class Scrape:
         f.close()
 
     def render_slides(self):
-        subprocess.run(["ffmpeg", "-f", "concat", "-i", "concat.txt", "-pix_fmt", "yuv420p", "-y", "slides.mp4"], cwd=self.out, stderr=subprocess.PIPE)
+        subprocess.run(["ffmpeg", "-f", "concat", "-i", "concat.txt",
+                        "-pix_fmt", "yuv420p", "-y", "slides.mp4"],
+                       cwd=self.out, stderr=subprocess.PIPE)
 
 
 def main():
     parser = argparse.ArgumentParser(description='Scrape Big Blue Button')
     parser.add_argument('host', help="Hostname or full Meeting URL")
     parser.add_argument('id', help="Meeting id", nargs='?')
-    parser.add_argument('--no-webcam', action='store_true', help="Don't scrape webcam")
-    parser.add_argument('--no-deskshare', action='store_true', help="Don't scrape deskshare")
+    parser.add_argument('--no-webcam', action='store_true',
+                        help="Don't scrape webcam")
+    parser.add_argument('--no-deskshare', action='store_true',
+                        help="Don't scrape deskshare")
 
     args = parser.parse_args()
     host = args.host
     meeting_id = args.id
 
-    # If only one parameter is given, assume it is a full meeting URL and extract host and meeting_id
+    # If only one parameter is given, assume it is a full meeting URL and
+    # extract host and meeting_id
     if meeting_id is None:
         url = urlparse(host)
         host = url.netloc
         if host is None:
-            print("!! Bad meetin URL. Either specify hostname and meeting id or the full URL of the recording")
+            print("!! Bad meeting URL. Either specify hostname and meeting id"
+                  " or the full URL of the recording")
             return 1
         qs = parse_qs(url.query)
         if "meetingId" not in qs:
