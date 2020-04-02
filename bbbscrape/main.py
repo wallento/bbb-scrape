@@ -39,16 +39,16 @@ class Scrape:
         url = "{}/deskshare/deskshare.mp4".format(self.baseurl)
         req = requests.get(url)
         if req.status_code == 200:
-           open(os.path.join(self.out, "deskshare.mp4"), "wb").write(req.content)
-           return True
+            open(os.path.join(self.out, "deskshare.mp4"), "wb").write(req.content)
+            return True
         return False
 
     def fetch_webcams(self):
         url = "{}/video/webcams.mp4".format(self.baseurl)
         req = requests.get(url)
         if req.status_code == 200:
-           open(os.path.join(self.out, "webcams.mp4"), "wb").write(req.content)
-           return True
+            open(os.path.join(self.out, "webcams.mp4"), "wb").write(req.content)
+            return True
         return False
 
     def fetch_image(self):
