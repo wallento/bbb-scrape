@@ -187,13 +187,14 @@ def main():
     if meeting_id is None:
         url = urlparse(host)
         host = url.netloc
-        meeting_id = parse_qs(url.query).get("meetingId", meeting_id)
         if host is None:
             print("!! Bad meetin URL. Either specify hostname and meeting id or the full URL of the recording")
             return 1
-    if meeting_id is None:
-        print("!! No meeting id given, and no meeting id found in URL")
-        return 1
+        qs = parse_qs(url.query)
+        if "meetingId" not in qs:
+            print("!! No meeting id given, and no meeting id found in URL")
+            return 1
+        meeting_id = qs["meetingId"][0]
 
     try:
         subprocess.run(["ffmpeg", "-h"], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
