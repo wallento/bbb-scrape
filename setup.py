@@ -12,7 +12,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=setuptools.find_packages(),
-    install_requires=["requests", "cairosvg"],
+    install_requires=["requests"],
     setup_requires=[
         'setuptools_scm',
     ],
