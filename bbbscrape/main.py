@@ -2,21 +2,24 @@
 
 # SPDX-License-Identifier: MIT
 
-import requests
-import os
 import argparse
-from xml.etree import ElementTree
-from collections import namedtuple, OrderedDict
-import subprocess
 import copy
+import os
+import subprocess
+from collections import OrderedDict, namedtuple
 from queue import Queue
 from threading import Thread
+from urllib.parse import parse_qs, urlparse
+from xml.etree import ElementTree
+
+import requests
 from cairosvg import svg2png
 
 namespaces = {"svg": "http://www.w3.org/2000/svg", "xlink": "http://www.w3.org/1999/xlink"}
 
 Image = namedtuple("Image", ["id", "fname", "ts_in", "ts_out"])
 Frame = namedtuple("Frame", ["fname", "ts_in", "ts_out"])
+
 
 class Scrape:
     def __init__(self, host, id):
@@ -168,14 +171,29 @@ class Scrape:
     def render_slides(self):
         subprocess.run(["ffmpeg", "-f", "concat", "-i", "concat.txt", "-pix_fmt", "yuv420p", "-y", "slides.mp4"], cwd=self.out, stderr=subprocess.PIPE)
 
+
 def main():
     parser = argparse.ArgumentParser(description='Scrape Big Blue Button')
-    parser.add_argument('host', help="Hostname")
-    parser.add_argument('id', help="Meeting id")
+    parser.add_argument('host', help="Hostname or full Meeting URL")
+    parser.add_argument('id', help="Meeting id", nargs='?')
     parser.add_argument('--no-webcam', action='store_true', help="Don't scrape webcam")
     parser.add_argument('--no-deskshare', action='store_true', help="Don't scrape deskshare")
 
     args = parser.parse_args()
+    host = args.host
+    meeting_id = args.id
+
+    # If only one parameter is given, assume it is a full meeting URL and extract host and meeting_id
+    if meeting_id is None:
+        url = urlparse(host)
+        host = url.netloc
+        meeting_id = parse_qs(url.query).get("meetingId", meeting_id)
+        if host is None:
+            print("!! Bad meetin URL. Either specify hostname and meeting id or the full URL of the recording")
+            return 1
+    if meeting_id is None:
+        print("!! No meeting id given, and no meeting id found in URL")
+        return 1
 
     try:
         subprocess.run(["ffmpeg", "-h"], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
@@ -183,7 +201,7 @@ def main():
         print("!! ffmpeg not found. Please install it and make sure it is available in your PATH.")
         return 1
 
-    scrape = Scrape(args.host, args.id)
+    scrape = Scrape(host, meeting_id)
     print("++ Scrape from server")
     scrape.create_output_dir()
     scrape.fetch_shapes()
