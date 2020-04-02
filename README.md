@@ -17,7 +17,7 @@ Installation:
 pip install bbb-scrape
 ```
 
-You also need inkscape installed (image conversion in the background).
+You also need inkscape (image conversion in the background) and ffmpeg (rendering) installed.
 
 Use:
 
