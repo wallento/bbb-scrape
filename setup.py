@@ -8,6 +8,7 @@ setuptools.setup(
     author="Stefan Wallentowitz",
     author_email="stefan.wallentowitz@hm.edu",
     description="Scrape BBB meeting",
+    url="https://github.com/wallento/bbb-scrape",
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=setuptools.find_packages(),
