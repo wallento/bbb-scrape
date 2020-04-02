@@ -197,9 +197,21 @@ def main():
         meeting_id = qs["meetingId"][0]
 
     try:
-        subprocess.run(["ffmpeg", "-h"], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+        subprocess.run(["ffmpeg", "-h"],
+                       stderr=subprocess.DEVNULL,
+                       stdout=subprocess.DEVNULL)
     except OSError:
-        print("!! ffmpeg not found. Please install it and make sure it is available in your PATH.")
+        print("!! ffmpeg not found. Please install it and make sure it is"
+              " available in your PATH.")
+        return 1
+
+    try:
+        subprocess.run(["inkscape", "--help"],
+                       stderr=subprocess.DEVNULL,
+                       stdout=subprocess.DEVNULL)
+    except OSError:
+        print("!! inkscape not found. Please install it and make sure it is"
+              "available in your PATH.")
         return 1
 
     scrape = Scrape(host, meeting_id)
