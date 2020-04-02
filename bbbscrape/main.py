@@ -208,6 +208,9 @@ def main():
             print("!! No meeting id given, and no meeting id found in URL")
             return 1
         meeting_id = qs["meetingId"][0]
+    else:
+        print("ii Usage of <host> <id> arguments is deprecated. "
+              "Use <meeting url> as single argument instead.")
 
     try:
         subprocess.run(["ffmpeg", "-h"],
