@@ -113,7 +113,7 @@ class Scrape:
             os.mkdir(os.path.join(self.out, "frames"))
         except FileExistsError:
             pass
-        self.frames = []
+        self.frames = {}
 
         self.workq = Queue()
         for i in range(os.cpu_count()):
@@ -154,7 +154,7 @@ class Scrape:
                            cwd=self.out, stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE)
             frame = Frame(fname=fname, ts_in=timestamp, ts_out=ts_out)
-            self.frames.append(frame)
+            self.frames[timestamp] = frame
             self.workq.task_done()
 
     def make_visible(self, tree, timestamp):
@@ -169,10 +169,11 @@ class Scrape:
 
     def generate_concat(self):
         f = open(os.path.join(self.out, "concat.txt"), "w")
-        for frame in self.frames:
+        for t in self.timestamps[0:-1]:
+            frame = self.frames[t]
             f.write("file '{}'\n".format(frame.fname))
             f.write("duration {:f}\n".format(frame.ts_out-frame.ts_in))
-        f.write("file '{}'\n".format(self.frames[-1].fname))
+        f.write("file '{}'\n".format(self.frames[self.timestamps[-2]].fname))
         f.close()
 
     def render_slides(self):
