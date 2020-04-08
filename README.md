@@ -22,5 +22,5 @@ You also need inkscape (image conversion in the background) and ffmpeg (renderin
 Use:
 
 ```
-bbb-scrape <hostname> <meetingid>
+bbb-scrape <meeting URL>
 ```
