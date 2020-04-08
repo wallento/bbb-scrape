@@ -34,38 +34,46 @@ class Scrape:
         except FileExistsError:
             pass
 
-    def fetch_shapes(self):
-        url = "{}/shapes.svg".format(self.baseurl)
-        shapes = requests.get(url)
-        self.shapes = ElementTree.fromstring(shapes.content)
-        open(os.path.join(self.out, "shapes.svg"), "wb").write(shapes.content)
+    def fetch_shapes(self, force=False):
+        file = os.path.join(self.out, "shapes.svg")
+        if not os.path.exists(file) or force:
+            url = "{}/shapes.svg".format(self.baseurl)
+            shapes = requests.get(url)
+            self.shapes = ElementTree.fromstring(shapes.content)
+            open(file, "wb").write(shapes.content)
+        else:
+            self.shapes = ElementTree.fromstring(open(file, "r").read())
 
-    def fetch_deskshare(self):
-        url = "{}/deskshare/deskshare.mp4".format(self.baseurl)
-        req = requests.get(url)
-        if req.status_code == 200:
-            fname = os.path.join(self.out, "deskshare.mp4")
-            open(fname, "wb").write(req.content)
-            return True
+    def fetch_deskshare(self, force=False):
+        fname = os.path.join(self.out, "deskshare.mp4")
+        if not os.path.exists(fname) or force:
+            url = "{}/deskshare/deskshare.mp4".format(self.baseurl)
+            req = requests.get(url)
+            if req.status_code == 200:
+                open(fname, "wb").write(req.content)
+                return True
         return False
 
-    def fetch_webcams(self):
-        url = "{}/video/webcams.mp4".format(self.baseurl)
-        req = requests.get(url)
-        if req.status_code == 200:
-            fname = os.path.join(self.out, "webcams.mp4")
-            open(fname, "wb").write(req.content)
-            return True
+    def fetch_webcams(self, force=False):
+        fname = os.path.join(self.out, "webcams.mp4")
+        if not os.path.exists(fname) or force:
+            url = "{}/video/webcams.mp4".format(self.baseurl)
+            req = requests.get(url)
+            if req.status_code == 200:
+                open(fname, "wb").write(req.content)
+                return True
         return False
 
-    def fetch_image(self):
+    def fetch_image(self, force=False):
         while True:
             e = self.workq.get()
             href = e.attrib["{http://www.w3.org/1999/xlink}href"]
             fname = os.path.basename(href)
-            url = "{}/{}".format(self.baseurl, href)
-            image = requests.get(url)
-            open(os.path.join(self.out, fname), "wb").write(image.content)
+            file = os.path.join(self.out, fname)
+            if not os.path.exists(file) or force:
+                url = "{}/{}".format(self.baseurl, href)
+                image = requests.get(url)
+                open(file, "wb").write(image.content)
             e.attrib["{http://www.w3.org/1999/xlink}href"] = fname
             if "id" in e.attrib:
                 self.images.append(Image(id=e.attrib["id"],
@@ -74,13 +82,13 @@ class Scrape:
                                          ts_out=float(e.attrib["out"])))
             self.workq.task_done()
 
-    def fetch_images(self, tree=None):
+    def fetch_images(self, tree=None, force=False):
         if tree is None:
             self.images = []
             self.workq = Queue()
             for i in range(os.cpu_count()):
                 Thread(target=Scrape.fetch_image, args=(self,)).start()
-            self.fetch_images(self.shapes)
+            self.fetch_images(self.shapes, force)
             fname = os.path.join(self.out, "shapes.svg")
             open(fname, "wb").write(ElementTree.tostring(self.shapes))
             self.workq.join()
@@ -108,7 +116,7 @@ class Scrape:
                 self.timestamps.append(float(e.attrib["timestamp"]))
             self.read_timestamps(e)
 
-    def generate_frames(self):
+    def generate_frames(self, force=False):
         try:
             os.mkdir(os.path.join(self.out, "frames"))
         except FileExistsError:
@@ -117,7 +125,7 @@ class Scrape:
 
         self.workq = Queue()
         for i in range(os.cpu_count()):
-            Thread(target=Scrape.generate_frame, args=(self,)).start()
+            Thread(target=Scrape.generate_frame, args=(self,force,)).start()
 
         t = 0.0
         for ts in self.timestamps[1:]:
@@ -125,34 +133,38 @@ class Scrape:
             t = ts
         self.workq.join()
 
-    def generate_frame(self):
+    def generate_frame(self, force=False):
         while True:
             (timestamp, ts_out) = self.workq.get()
-            shapes = copy.deepcopy(self.shapes)
-            image = None
-            for i in self.images:
-                if timestamp >= i.ts_in and timestamp < i.ts_out:
-                    image = i.id
-            for e in shapes.findall("svg:image", namespaces):
-                if e.attrib["id"] == image:
-                    e.attrib["style"] = ""
-                else:
-                    shapes.remove(e)
-            for e in shapes.findall("svg:g", namespaces):
-                assert(e.attrib["class"] == "canvas")
-                if e.attrib["image"] == image:
-                    e.attrib["display"] = "inherit"
-                    self.make_visible(e, timestamp)
-                else:
-                    shapes.remove(e)
             fname = os.path.join("frames", "shapes{}.png".format(timestamp))
             fnamesvg = os.path.join("frames", "shapes{}.svg".format(timestamp))
-            shapestr = ElementTree.tostring(shapes)
-            open(os.path.join(self.out, fnamesvg), "wb").write(shapestr)
-            subprocess.run(["inkscape", "--export-png={}".format(fname),
-                            "--export-area-drawing", fnamesvg],
-                           cwd=self.out, stdout=subprocess.PIPE,
-                           stderr=subprocess.PIPE)
+            if not os.path.exists(os.path.join(self.out, fnamesvg)) or force:
+                shapes = copy.deepcopy(self.shapes)
+                image = None
+                for i in self.images:
+                    if timestamp >= i.ts_in and timestamp < i.ts_out:
+                        image = i.id
+                for e in shapes.findall("svg:image", namespaces):
+                    if e.attrib["id"] == image:
+                        e.attrib["style"] = ""
+                    else:
+                        shapes.remove(e)
+                for e in shapes.findall("svg:g", namespaces):
+                    assert(e.attrib["class"] == "canvas")
+                    if e.attrib["image"] == image:
+                        e.attrib["display"] = "inherit"
+                        self.make_visible(e, timestamp)
+                    else:
+                        shapes.remove(e)
+                shapestr = ElementTree.tostring(shapes)
+                open(os.path.join(self.out, fnamesvg), "wb").write(shapestr)
+
+            if not os.path.exists(os.path.join(self.out, fname)) or force:
+                subprocess.run(["inkscape", "--export-png={}".format(fname),
+                                "--export-area-drawing", fnamesvg],
+                            cwd=self.out, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE)
+
             frame = Frame(fname=fname, ts_in=timestamp, ts_out=ts_out)
             self.frames[timestamp] = frame
             self.workq.task_done()
@@ -190,6 +202,8 @@ def main():
                         help="Don't scrape webcam")
     parser.add_argument('--no-deskshare', action='store_true',
                         help="Don't scrape deskshare")
+    parser.add_argument('--force', action='store_true',
+                        help="Force download, normally uses files from disk")
 
     args = parser.parse_args()
     host = args.host
@@ -234,15 +248,15 @@ def main():
     scrape = Scrape(host, meeting_id)
     print("++ Scrape from server")
     scrape.create_output_dir()
-    scrape.fetch_shapes()
-    scrape.fetch_images()
-    if not args.no_webcam and scrape.fetch_webcams():
+    scrape.fetch_shapes(args.force)
+    scrape.fetch_images(None, args.force)
+    if not args.no_webcam and scrape.fetch_webcams(args.force):
         print("++ Stored webcams to webcams.mp4")
-    if not args.no_deskshare and scrape.fetch_deskshare():
+    if not args.no_deskshare and scrape.fetch_deskshare(args.force):
         print("++ Stored desk sharing to deskshare.mp4")
     print("++ Generate frames")
     scrape.read_timestamps()
-    scrape.generate_frames()
+    scrape.generate_frames(args.force)
     scrape.generate_concat()
     print("++ Render slides.mp4")
     scrape.render_slides()
