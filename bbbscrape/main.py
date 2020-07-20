@@ -52,12 +52,26 @@ class Scrape:
             if req.status_code == 200:
                 open(fname, "wb").write(req.content)
                 return True
+        fname = os.path.join(self.out, "deskshare.webm")
+        if not os.path.exists(fname) or force:
+            url = "{}/deskshare/deskshare.webm".format(self.baseurl)
+            req = requests.get(url)
+            if req.status_code == 200:
+                open(fname, "wb").write(req.content)
+                return True
         return False
 
     def fetch_webcams(self, force=False):
         fname = os.path.join(self.out, "webcams.mp4")
         if not os.path.exists(fname) or force:
             url = "{}/video/webcams.mp4".format(self.baseurl)
+            req = requests.get(url)
+            if req.status_code == 200:
+                open(fname, "wb").write(req.content)
+                return True
+        fname = os.path.join(self.out, "webcams.webm")
+        if not os.path.exists(fname) or force:
+            url = "{}/video/webcams.webm".format(self.baseurl)
             req = requests.get(url)
             if req.status_code == 200:
                 open(fname, "wb").write(req.content)
