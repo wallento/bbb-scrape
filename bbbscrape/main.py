@@ -46,18 +46,58 @@ class Scrape:
 
     def fetch_deskshare(self, force=False):
         fname = os.path.join(self.out, "deskshare.mp4")
+        fname2 = os.path.join(self.out, "deskshare.xml")
+        fname3 = os.path.join(self.out, "deskshare.webm")
         if not os.path.exists(fname) or force:
             url = "{}/deskshare/deskshare.mp4".format(self.baseurl)
             req = requests.get(url)
             if req.status_code == 200:
+                print("reading ", url)
                 open(fname, "wb").write(req.content)
+            else:
+                url = "{}/deskshare/deskshare.webm".format(self.baseurl)
+                req = requests.get(url)
+                if req.status_code == 200:
+                    print("reading ", url)
+                    open(fname3, "wb").write(req.content)
+                else:
+                    print("could not read deskshare video")
+            url = "{}/deskshare.xml".format(self.baseurl)
+            req = requests.get(url)
+            print("deskshare.xml URL", url)
+            if req.status_code == 200:
+                open(fname2, "wb").write(req.content)
                 return True
         return False
 
+    def url_file_exists(self, fname):
+        url = "{}/video/{}".format(self.baseurl, fname)
+        req = requests.get(url)
+        if req.status_code == 200:
+            return True
+        else:
+            return False
+
+    def has_webcam_video(self):
+        return self.url_file_exists("webcams.mp4")
+
+    def has_webcam_audio_only(self):
+        return self.url_file_exists("webcams.webm")
+
     def fetch_webcams(self, force=False):
-        fname = os.path.join(self.out, "webcams.mp4")
+        if self.has_webcam_video():
+            url_fname = "webcams.mp4"
+            fname = os.path.join(self.out, url_fname)
+            print("fetching webcam video stream")
+        else:
+            url_fname = "webcams.webm"
+            fname = os.path.join(self.out, url_fname)
+            print("fetching webcam audio stream")
+            if not self.has_webcam_audio_only():
+                print("ERROR!!!")
         if not os.path.exists(fname) or force:
-            url = "{}/video/webcams.mp4".format(self.baseurl)
+            url = "{}/video/{}".format(self.baseurl, url_fname)
+            print("URL", url)
             req = requests.get(url)
             if req.status_code == 200:
                 open(fname, "wb").write(req.content)
@@ -65,7 +105,7 @@ class Scrape:
         return False
 
     def fetch_image(self, force=False):
-        while True:
+        while self.workq.qsize() > 0:
             e = self.workq.get()
             href = e.attrib["{http://www.w3.org/1999/xlink}href"]
             fname = os.path.basename(href)
@@ -86,12 +126,9 @@ class Scrape:
         if tree is None:
             self.images = []
             self.workq = Queue()
-            for i in range(os.cpu_count()):
-                Thread(target=Scrape.fetch_image, args=(self,)).start()
             self.fetch_images(self.shapes, force)
             fname = os.path.join(self.out, "shapes.svg")
             open(fname, "wb").write(ElementTree.tostring(self.shapes))
-            self.workq.join()
             return
 
         for e in tree.findall("svg:image", namespaces):
@@ -124,17 +161,16 @@ class Scrape:
         self.frames = {}
 
         self.workq = Queue()
-        for i in range(os.cpu_count()):
-            Thread(target=Scrape.generate_frame, args=(self,force,)).start()
 
         t = 0.0
         for ts in self.timestamps[1:]:
             self.workq.put((t, ts))
             t = ts
-        self.workq.join()
+
+        self.generate_frame(force)
 
     def generate_frame(self, force=False):
-        while True:
+        while self.workq.qsize() > 0:
             (timestamp, ts_out) = self.workq.get()
             fname = os.path.join("frames", "shapes{}.png".format(timestamp))
             fnamesvg = os.path.join("frames", "shapes{}.svg".format(timestamp))
@@ -160,10 +196,10 @@ class Scrape:
                 open(os.path.join(self.out, fnamesvg), "wb").write(shapestr)
 
             if not os.path.exists(os.path.join(self.out, fname)) or force:
-                subprocess.run(["inkscape", "--export-png={}".format(fname),
-                                "--export-area-drawing", fnamesvg],
-                            cwd=self.out, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE)
+                result = subprocess.run(["inkscape", "--export-png={}".format(fname),
+                                         "--export-area-drawing", fnamesvg],
+                                        cwd=self.out, stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE)
 
             frame = Frame(fname=fname, ts_in=timestamp, ts_out=ts_out)
             self.frames[timestamp] = frame
@@ -189,10 +225,11 @@ class Scrape:
         f.close()
 
     def render_slides(self):
-        subprocess.run(["ffmpeg", "-f", "concat", "-i", "concat.txt",
-                        "-pix_fmt", "yuv420p", "-y", "slides.mp4"],
-                       cwd=self.out, stderr=subprocess.PIPE)
-
+        result = subprocess.run(["ffmpeg", "-f", "concat", "-i", "concat.txt",
+                                 "-pix_fmt", "yuv420p", "-y",
+                                 "-vf", "scale=-2:720",
+                                 "slides.mp4"],
+                                cwd=self.out, stderr=subprocess.PIPE)
 
 def main():
     parser = argparse.ArgumentParser(description='Scrape Big Blue Button')
@@ -250,13 +287,17 @@ def main():
     scrape.create_output_dir()
     scrape.fetch_shapes(args.force)
     scrape.fetch_images(None, args.force)
+    scrape.fetch_image(args.force)
     if not args.no_webcam and scrape.fetch_webcams(args.force):
-        print("++ Stored webcams to webcams.mp4")
+        print("++ Stored webcams file")
     if not args.no_deskshare and scrape.fetch_deskshare(args.force):
-        print("++ Stored desk sharing to deskshare.mp4")
+        print("++ Stored desk sharing file")
     print("++ Generate frames")
     scrape.read_timestamps()
     scrape.generate_frames(args.force)
     scrape.generate_concat()
     print("++ Render slides.mp4")
     scrape.render_slides()
+
+if __name__ == "__main__":
+    main()
