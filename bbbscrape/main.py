@@ -122,8 +122,11 @@ class Scrape:
         while self.workq.qsize() > 0:
             e = self.workq.get()
             href = e.attrib["{http://www.w3.org/1999/xlink}href"]
-            uuid = os.path.dirname(href).split("/")[1]
-            fname = "{}-{}".format(uuid, os.path.basename(href))
+            try:
+                uuid = os.path.dirname(href).split("/")[1]
+                fname = "{}-{}".format(uuid, os.path.basename(href))
+            except IndexError:
+                fname = os.path.basename(href)
             file = os.path.join(self.out, fname)
             if not os.path.exists(file) or force:
                 url = "{}/{}".format(self.baseurl, href)
