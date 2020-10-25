@@ -172,10 +172,6 @@ class Scrape:
             self.read_timestamps(e)
 
     def generate_frames(self, force=False):
-        try:
-            os.mkdir(os.path.join(self.out, "frames"))
-        except FileExistsError:
-            pass
         self.frames = {}
 
         self.workq = Queue()
@@ -190,8 +186,8 @@ class Scrape:
     def generate_frame(self, force=False):
         while self.workq.qsize() > 0:
             (timestamp, ts_out) = self.workq.get()
-            fname = os.path.join("frames", "shapes{}.png".format(timestamp))
-            fnamesvg = os.path.join("frames", "shapes{}.svg".format(timestamp))
+            fname ="shapes{}.png".format(timestamp)
+            fnamesvg = "shapes{}.svg".format(timestamp)
             if not os.path.exists(os.path.join(self.out, fnamesvg)) or force:
                 shapes = copy.deepcopy(self.shapes)
                 image = None
